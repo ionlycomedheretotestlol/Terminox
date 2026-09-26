@@ -76,5 +76,3 @@ Terminox is MIT licensed (see [LICENSE](LICENSE)). It bundles or uses:
 - [LRCLIB](https://lrclib.net), NetEase Cloud Music, lyrics.ovh, the iTunes Search API, [Piped](https://github.com/TeamPiped/Piped), [Invidious](https://invidious.io)
 
 Theme names are tributes to the compositors and color schemes that inspired them; Terminox isn't affiliated with any of them.
-
-Built with [Claude Code](https://claude.com/claude-code).
