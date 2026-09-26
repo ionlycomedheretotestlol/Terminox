@@ -122,7 +122,7 @@ fun SettingsPanel(onClose: () -> Unit, onPickWallpaper: (String) -> Unit, onRepl
                     dev.terminox.music.GlassField(keyDraft, { keyDraft = it }, "Paste a new Gemini API key", androidx.compose.ui.text.input.ImeAction.Done) {
                         if (keyDraft.isNotBlank()) { Prefs.geminiKey = keyDraft.trim(); keyDraft = "" }
                     }
-                    Chips(listOf("gemini-flash-latest" to "Flash (latest)", "gemini-3.8-flash" to "3.8 Flash", "gemini-flash-lite-latest" to "Flash Lite", "gemini-pro-latest" to "Pro"), Prefs.geminiModel) { Prefs.geminiModel = it }
+                    Chips(listOf("gemini-3.8-flash" to "3.8 Flash", "gemini-3.7-flash" to "3.7 Flash", "gemini-3.6-flash" to "3.6 Flash"), Prefs.geminiModel) { Prefs.geminiModel = it }
                     Slide("Max autonomous steps", Prefs.aiMaxSteps.toFloat(), 3f..30f) { Prefs.aiMaxSteps = it.roundToInt() }
                     Toggle("Ask before destructive commands", Prefs.aiConfirmRisky) { Prefs.aiConfirmRisky = it }
 

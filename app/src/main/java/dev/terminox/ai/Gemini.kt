@@ -15,19 +15,29 @@ object Gemini {
     private val http = OkHttpClient.Builder().readTimeout(120, TimeUnit.SECONDS).build()
 
     /** Returns the model's content object ({role, parts}). Throws with the API's message on failure. */
+    /** Tried in order when a model is overloaded, rate-limited or unavailable. 3.6 is the last stop. */
+    val CHAIN = listOf("gemini-3.8-flash", "gemini-3.7-flash", "gemini-3.6-flash")
+
     suspend fun generate(key: String, model: String, system: String, contents: JSONArray, tools: JSONArray): JSONObject {
-        // Free-tier keys hit 429 quickly; back off and retry instead of failing the whole task.
-        var wait = 3_000L
-        repeat(3) {
-            try { return once(key, model, system, contents, tools) } catch (e: Busy) { kotlinx.coroutines.delay(wait); wait *= 2 }
+        // Start at the chosen model and walk down the chain (3.8 → 3.7 → 3.6).
+        val order = if (model in CHAIN) CHAIN.drop(CHAIN.indexOf(model)) else listOf(model) + CHAIN
+        var last: Throwable? = null
+        for (m in order) {
+            var wait = 2_000L
+            repeat(2) {
+                try { return once(key, m, system, contents, tools) }
+                catch (e: Busy) { last = e; kotlinx.coroutines.delay(wait); wait *= 2 }
+                catch (e: Gone) { last = e; return@repeat }
+            }
         }
-        // Still overloaded: fall back to a stable model rather than giving up.
-        return once(key, if (model == FALLBACK) model else FALLBACK, system, contents, tools)
+        error(when (last) {
+            is Busy -> "All Gemini models are busy or out of quota (tried ${order.joinToString()}). Try again in a minute."
+            else -> last?.message ?: "No Gemini model answered."
+        })
     }
 
-    private const val FALLBACK = "gemini-3.8-flash"
-
     private class Busy : Exception()
+    private class Gone(msg: String) : Exception(msg)
 
     private suspend fun once(key: String, model: String, system: String, contents: JSONArray, tools: JSONArray): JSONObject =
         withContext(Dispatchers.IO) {
@@ -45,6 +55,7 @@ object Gemini {
                 val text = resp.body?.string().orEmpty()
                 val json = runCatching { JSONObject(text) }.getOrNull()
                 if (resp.code == 429 || resp.code == 503) throw Busy()
+                if (resp.code == 404) throw Gone(json?.optJSONObject("error")?.optString("message") ?: "Model $model not found")
                 if (!resp.isSuccessful) {
                     val msg = json?.optJSONObject("error")?.optString("message") ?: "HTTP ${resp.code}"
                     error(msg)

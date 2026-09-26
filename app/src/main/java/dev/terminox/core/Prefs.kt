@@ -71,7 +71,7 @@ object Prefs {
 
     // AI
     var geminiKey by Pref("geminiKey", dev.terminox.BuildConfig.GEMINI_API_KEY)
-    var geminiModel by Pref("geminiModel", "gemini-flash-latest")
+    var geminiModel by Pref("geminiModel", "gemini-3.8-flash")
     var aiMaxSteps by Pref("aiMaxSteps", 12)
     var aiConfirmRisky by Pref("aiConfirmRisky", true)
     var rootGranted by Pref("rootGranted", false)
