@@ -111,7 +111,7 @@ fun SettingsPanel(onClose: () -> Unit, onPickWallpaper: (String) -> Unit, onRepl
                     Slide("Bounciness", 1f - Prefs.bounce, 0f..0.6f, pct = true) { Prefs.bounce = 1f - it }
 
                     Section("Terminal")
-                    Slide("Font size", Prefs.fontSize.toFloat(), 14f..56f) { Prefs.fontSize = it.roundToInt() }
+                    Slide("Font size (or pinch a terminal)", Prefs.fontSize.toFloat(), dev.terminox.term.MIN_FONT.toFloat()..dev.terminox.term.MAX_FONT.toFloat()) { Prefs.fontSize = it.roundToInt() }
                     Chips(Schemes.all.map { it.name to it.name }, Prefs.termScheme) { Prefs.termScheme = it }
 
                     Section("AI (the blob)")

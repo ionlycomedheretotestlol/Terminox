@@ -16,6 +16,11 @@ import androidx.compose.ui.viewinterop.AndroidView
 import com.termux.terminal.TerminalSession
 import com.termux.view.TerminalView
 import com.termux.view.TerminalViewClient
+import dev.terminox.core.Prefs
+import androidx.compose.ui.unit.sp
+
+const val MIN_FONT = 5
+const val MAX_FONT = 28
 
 /** True while a panel with its own text field is open: terminals must not steal focus then. */
 object FocusGuard {
@@ -38,6 +43,7 @@ fun TerminalPane(
     onView: (TerminalView) -> Unit = {},
 ) {
     val version = term.version.intValue
+    val px = with(androidx.compose.ui.platform.LocalDensity.current) { fontSize.sp.roundToPx() }
     val scheme = Schemes.current()
     var viewRef by remember { mutableStateOf<TerminalView?>(null) }
     // Take focus only when this window becomes focused (or a panel closes), not on output.
@@ -52,7 +58,7 @@ fun TerminalPane(
                 // punch through the glass drawn behind the view.
                 setLayerType(android.view.View.LAYER_TYPE_HARDWARE, null)
                 setTerminalViewClient(ViewClient(this, onTap))
-                setTextSize(fontSize)
+                setTextSize(px)
                 setTypeface(Typeface.MONOSPACE)
                 isFocusable = true
                 isFocusableInTouchMode = true
@@ -63,7 +69,7 @@ fun TerminalPane(
         },
         update = { v ->
             if (v.currentSession !== term.session) v.attachSession(term.session)
-            v.setTextSize(fontSize)
+            v.setTextSize(px)
             // Reading `version` makes new shell output re-run this block.
             if (version >= 0) v.onScreenUpdated()
             if (scheme.name.isNotEmpty()) { Schemes.apply(v.mEmulator); v.invalidate() }
@@ -75,10 +81,15 @@ fun TerminalPane(
 }
 
 private class ViewClient(private val view: TerminalView, private val onTap: () -> Unit) : TerminalViewClient {
-    private var scale = 1f
-
-    override fun onScale(s: Float): Float {
-        scale = (scale * s).coerceIn(0.5f, 3f)
+    /**
+     * Pinch zoom. The view accumulates the gesture's scale; once it passes ±10% we step the font
+     * one sp and reset, so zooming feels continuous. The size is global and saved.
+     */
+    override fun onScale(scale: Float): Float {
+        if (scale < 0.9f || scale > 1.1f) {
+            Prefs.fontSize = (Prefs.fontSize + if (scale > 1f) 1 else -1).coerceIn(MIN_FONT, MAX_FONT)
+            return 1f
+        }
         return scale
     }
 

@@ -83,6 +83,7 @@ object Prefs {
     var locked by Pref("locked", false)
 
     // terminal
-    var fontSize by Pref("fontSize", 26)
+    /** Terminal font size in sp (pinch a terminal to change it). */
+    var fontSize by Pref("fontSizeSp", 9)
     var termScheme by Pref("termScheme", "Terminox")
 }
