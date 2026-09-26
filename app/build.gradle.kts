@@ -13,13 +13,15 @@ android {
     defaultConfig {
         applicationId = terminoxAppId
         minSdk = 24
-        // Must stay <= 28: Android 10+ forbids exec() of files in the app data dir
-        // for apps targeting 29+, which would break every binary in $PREFIX (same as Termux).
+        // proot runs from the native library dir, but guest programs are loaded from app data;
+        // targeting 28 keeps that working on every Android version.
         //noinspection ExpiredTargetSdkVersion
         targetSdk = 28
         versionCode = 1
         versionName = "1.0.0"
         vectorDrawables.useSupportLibrary = true
+        // Only ABIs we ship a proot build for.
+        ndk { abiFilters += listOf("arm64-v8a", "armeabi-v7a", "x86_64") }
     }
 
     signingConfigs {
@@ -58,7 +60,7 @@ android {
     }
     packaging {
         jniLibs {
-            // Keep libtermux.so extractable like upstream Termux.
+            // proot is shipped as lib*.so and must be extracted to disk to be executable.
             useLegacyPackaging = true
         }
         resources.excludes += "/META-INF/{AL2.0,LGPL2.1}"
@@ -94,4 +96,5 @@ dependencies {
     implementation("androidx.media3:media3-session:1.5.0")
     implementation("io.coil-kt:coil-compose:2.7.0")
     implementation("com.squareup.okhttp3:okhttp:4.12.0")
+    implementation("org.tukaani:xz:1.10")
 }
