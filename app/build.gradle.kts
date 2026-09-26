@@ -65,6 +65,16 @@ android {
         }
         resources.excludes += "/META-INF/{AL2.0,LGPL2.1}"
     }
+    testOptions {
+        unitTests.isIncludeAndroidResources = true
+        unitTests.all {
+            System.getenv("ROBOLECTRIC_DEPS")?.let { dir ->
+                it.systemProperty("robolectric.offline", "true")
+                it.systemProperty("roborazzi.test.record", "true")
+                it.systemProperty("robolectric.dependency.dir", dir)
+            }
+        }
+    }
     lint {
         disable += setOf("ExpiredTargetSdkVersion", "OldTargetApi")
         checkReleaseBuilds = false
@@ -97,4 +107,12 @@ dependencies {
     implementation("io.coil-kt:coil-compose:2.7.0")
     implementation("com.squareup.okhttp3:okhttp:4.12.0")
     implementation("org.tukaani:xz:1.10")
+
+    // Screenshot rendering of the UI on the JVM (dev only)
+    testImplementation("junit:junit:4.13.2")
+    testImplementation("org.robolectric:robolectric:4.14.1")
+    testImplementation("io.github.takahirom.roborazzi:roborazzi:1.39.0")
+    testImplementation("io.github.takahirom.roborazzi:roborazzi-compose:1.39.0")
+    testImplementation("androidx.compose.ui:ui-test-junit4")
+    debugImplementation("androidx.compose.ui:ui-test-manifest")
 }

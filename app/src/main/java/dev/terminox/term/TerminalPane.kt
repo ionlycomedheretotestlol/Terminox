@@ -22,19 +22,30 @@ object Modifiers {
 }
 
 @Composable
-fun TerminalPane(term: Sessions.Term, fontSize: Int, modifier: Modifier = Modifier, onView: (TerminalView) -> Unit = {}) {
+fun TerminalPane(
+    term: Sessions.Term,
+    fontSize: Int,
+    modifier: Modifier = Modifier,
+    focused: Boolean = true,
+    onTap: () -> Unit = {},
+    onView: (TerminalView) -> Unit = {},
+) {
     val version = term.version.intValue
+    val scheme = Schemes.current()
     AndroidView(
         modifier = modifier,
         factory = { ctx ->
             TerminalView(ctx, null).apply {
-                setTerminalViewClient(ViewClient(this))
+                // Own GPU layer: the renderer clears with a transparent color, which must not
+                // punch through the glass drawn behind the view.
+                setLayerType(android.view.View.LAYER_TYPE_HARDWARE, null)
+                setTerminalViewClient(ViewClient(this, onTap))
                 setTextSize(fontSize)
                 setTypeface(Typeface.MONOSPACE)
                 isFocusable = true
                 isFocusableInTouchMode = true
                 attachSession(term.session)
-                requestFocus()
+                Schemes.apply(mEmulator)
             }
         },
         update = { v ->
@@ -42,12 +53,13 @@ fun TerminalPane(term: Sessions.Term, fontSize: Int, modifier: Modifier = Modifi
             v.setTextSize(fontSize)
             // Reading `version` makes new shell output re-run this block.
             if (version >= 0) v.onScreenUpdated()
-            onView(v)
+            if (scheme.name.isNotEmpty()) { Schemes.apply(v.mEmulator); v.invalidate() }
+            if (focused) { v.requestFocus(); onView(v) }
         }
     )
 }
 
-private class ViewClient(private val view: TerminalView) : TerminalViewClient {
+private class ViewClient(private val view: TerminalView, private val onTap: () -> Unit) : TerminalViewClient {
     private var scale = 1f
 
     override fun onScale(s: Float): Float {
@@ -56,6 +68,7 @@ private class ViewClient(private val view: TerminalView) : TerminalViewClient {
     }
 
     override fun onSingleTapUp(e: MotionEvent) {
+        onTap()
         view.requestFocus()
         view.context.getSystemService(InputMethodManager::class.java)
             .showSoftInput(view, InputMethodManager.SHOW_IMPLICIT)
@@ -76,7 +89,7 @@ private class ViewClient(private val view: TerminalView) : TerminalViewClient {
     override fun readFnKey() = false
 
     override fun onCodePoint(codePoint: Int, ctrlDown: Boolean, session: TerminalSession) = false
-    override fun onEmulatorSet() {}
+    override fun onEmulatorSet() { Schemes.apply(view.mEmulator) }
     override fun logError(tag: String?, message: String?) {}
     override fun logWarn(tag: String?, message: String?) {}
     override fun logInfo(tag: String?, message: String?) {}

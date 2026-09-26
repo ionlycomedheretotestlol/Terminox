@@ -23,6 +23,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.termux.view.TerminalView
+import dev.terminox.ui.glass
 
 private sealed class Key(val label: String) {
     class Text(label: String, val text: String) : Key(label)
@@ -45,8 +46,8 @@ fun ExtraKeys(view: () -> TerminalView?, accent: Color, modifier: Modifier = Mod
     Row(
         modifier
             .fillMaxWidth()
-            .height(40.dp)
-            .background(Color(0xE6101018))
+            .height(46.dp)
+            .glass(RoundedCornerShape(0.dp), alpha = 0.7f, elevation = 0.dp)
             .horizontalScroll(rememberScrollState())
             .padding(horizontal = 4.dp),
         verticalAlignment = Alignment.CenterVertically
@@ -59,7 +60,7 @@ fun ExtraKeys(view: () -> TerminalView?, accent: Color, modifier: Modifier = Mod
                     .widthIn(min = 40.dp)
                     .height(32.dp)
                     .clip(RoundedCornerShape(8.dp))
-                    .background(if (active) accent.copy(alpha = 0.35f) else Color(0x22FFFFFF))
+                    .background(if (active) accent.copy(alpha = 0.35f) else Color(0x1AFFFFFF))
                     .clickable {
                         val v = view() ?: return@clickable
                         when (key) {

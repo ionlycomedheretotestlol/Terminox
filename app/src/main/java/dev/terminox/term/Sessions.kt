@@ -56,7 +56,7 @@ object Sessions {
             s?.emulator?.paste(text)
         }
         override fun onBell(s: TerminalSession) {}
-        override fun onColorsChanged(s: TerminalSession) {}
+        override fun onColorsChanged(s: TerminalSession) = Schemes.apply(s.emulator)
         override fun onTerminalCursorStateChange(state: Boolean) {}
         override fun getTerminalCursorStyle(): Int? = null
         override fun logError(tag: String?, message: String?) {}
