@@ -1,0 +1,6 @@
+-keep class com.termux.terminal.** { *; }
+-keep class com.termux.view.** { *; }
+-keepclasseswithmembernames class * { native <methods>; }
+-dontwarn org.bouncycastle.**
+-dontwarn org.conscrypt.**
+-dontwarn org.openjsse.**
