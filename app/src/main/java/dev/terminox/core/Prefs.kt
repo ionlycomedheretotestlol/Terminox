@@ -69,6 +69,19 @@ object Prefs {
     var animSpeed by Pref("animSpeed", 1f)
     var bounce by Pref("bounce", 0.72f)
 
+    // AI
+    var geminiKey by Pref("geminiKey", dev.terminox.BuildConfig.GEMINI_API_KEY)
+    var geminiModel by Pref("geminiModel", "gemini-flash-latest")
+    var aiMaxSteps by Pref("aiMaxSteps", 12)
+    var aiConfirmRisky by Pref("aiConfirmRisky", true)
+    var rootGranted by Pref("rootGranted", false)
+
+    // music + background
+    var musicEnabled by Pref("musicEnabled", false)
+    var musicMode by Pref("musicMode", "background") // "background" | "command"
+    var lyricOffsetMs by Pref("lyricOffsetMs", 0)
+    var locked by Pref("locked", false)
+
     // terminal
     var fontSize by Pref("fontSize", 26)
     var termScheme by Pref("termScheme", "Terminox")

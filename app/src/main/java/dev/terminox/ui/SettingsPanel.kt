@@ -30,6 +30,8 @@ import androidx.compose.material3.Switch
 import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -111,6 +113,36 @@ fun SettingsPanel(onClose: () -> Unit, onPickWallpaper: (String) -> Unit, onRepl
                     Section("Terminal")
                     Slide("Font size", Prefs.fontSize.toFloat(), 14f..56f) { Prefs.fontSize = it.roundToInt() }
                     Chips(Schemes.all.map { it.name to it.name }, Prefs.termScheme) { Prefs.termScheme = it }
+
+                    Section("AI (the blob)")
+                    var keyDraft by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf("") }
+                    Text(if (Prefs.geminiKey.isBlank()) "No Gemini key set" else "Key: ${Prefs.geminiKey.take(5)}…${Prefs.geminiKey.takeLast(4)}",
+                        color = Palette.dim, fontSize = 13.sp)
+                    Spacer(Modifier.height(6.dp))
+                    dev.terminox.music.GlassField(keyDraft, { keyDraft = it }, "Paste a new Gemini API key", androidx.compose.ui.text.input.ImeAction.Done) {
+                        if (keyDraft.isNotBlank()) { Prefs.geminiKey = keyDraft.trim(); keyDraft = "" }
+                    }
+                    Chips(listOf("gemini-flash-latest" to "Flash (latest)", "gemini-3.8-flash" to "3.8 Flash", "gemini-flash-lite-latest" to "Flash Lite", "gemini-pro-latest" to "Pro"), Prefs.geminiModel) { Prefs.geminiModel = it }
+                    Slide("Max autonomous steps", Prefs.aiMaxSteps.toFloat(), 3f..30f) { Prefs.aiMaxSteps = it.roundToInt() }
+                    Toggle("Ask before destructive commands", Prefs.aiConfirmRisky) { Prefs.aiConfirmRisky = it }
+
+                    Section("Advanced")
+                    val ctx = androidx.compose.ui.platform.LocalContext.current
+                    Toggle("terminox-lock (run forever in background)", Prefs.locked) {
+                        if (it) dev.terminox.core.KeepAlive.lock(ctx) else dev.terminox.core.KeepAlive.unlock(ctx)
+                    }
+                    Text("Exclude from battery optimization", color = theme.a, fontWeight = FontWeight.SemiBold,
+                        modifier = Modifier.clip(RoundedCornerShape(12.dp)).clickable {
+                            runCatching {
+                                ctx.startActivity(android.content.Intent(android.provider.Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS,
+                                    android.net.Uri.parse("package:${ctx.packageName}")))
+                            }
+                        }.padding(vertical = 10.dp))
+                    Toggle("Music Player", Prefs.musicEnabled) { Prefs.musicEnabled = it }
+                    if (Prefs.musicEnabled) {
+                        Chips(listOf("background" to "Background lyrics", "command" to "Command (ter-music)"), Prefs.musicMode) { Prefs.musicMode = it }
+                        Slide("Lyrics offset (ms)", Prefs.lyricOffsetMs.toFloat(), -2000f..2000f) { Prefs.lyricOffsetMs = (it / 50).roundToInt() * 50 }
+                    }
 
                     Section("About")
                     Text("Replay intro", color = theme.a, fontWeight = FontWeight.SemiBold,

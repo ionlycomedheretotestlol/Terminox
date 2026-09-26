@@ -49,8 +49,8 @@ class MainActivity : ComponentActivity() {
                     when (s) {
                         "intro" -> Intro { Prefs.introSeen = true; replayIntro = false }
                         "wallpaper" -> WallpaperSetup(onPick = ::pick, onAurora = { Prefs.wallpaperType = "aurora"; Prefs.wallpaperChosen = true })
-                        "loading" -> LoadingScreen(app.installer) { installed = true }
-                        else -> Desktop(app.env, onPickWallpaper = ::pick, onReplayIntro = { replayIntro = true })
+                        "loading" -> LoadingScreen(app.installer) { installed = true; app.onDebianReady() }
+                        else -> Desktop(app.env, app.agent, onPickWallpaper = ::pick, onReplayIntro = { replayIntro = true })
                     }
                 }
             }

@@ -48,6 +48,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material.icons.rounded.Check
 import androidx.compose.material.icons.rounded.Close
+import androidx.compose.material.icons.rounded.MusicNote
 import androidx.compose.material.icons.rounded.OpenInFull
 import androidx.compose.material.icons.rounded.PushPin
 import androidx.compose.material.icons.rounded.Settings
@@ -119,10 +120,11 @@ private val LAYOUTS = listOf("dwindle", "master", "grid", "columns")
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-fun Desktop(env: Env, onPickWallpaper: (String) -> Unit, onReplayIntro: () -> Unit) {
+fun Desktop(env: Env, agent: dev.terminox.ai.Agent, onPickWallpaper: (String) -> Unit, onReplayIntro: () -> Unit) {
     val density = LocalDensity.current
     var settings by remember { mutableStateOf(false) }
     var ai by remember { mutableStateOf(false) }
+    var musicSearch by remember { mutableStateOf(false) }
     var focusedView by remember { mutableStateOf<TerminalView?>(null) }
     val imeVisible = WindowInsets.isImeVisible
 
@@ -139,9 +141,10 @@ fun Desktop(env: Env, onPickWallpaper: (String) -> Unit, onReplayIntro: () -> Un
     BoxWithConstraints(Modifier.fillMaxSize()) {
         val screen = Size(constraints.maxWidth.toFloat(), constraints.maxHeight.toFloat())
         WallpaperLayer()
+        dev.terminox.music.LyricsLayer()
 
         Column(Modifier.fillMaxSize().statusBarsPadding().navigationBarsPadding().imePadding()) {
-            if (Prefs.showBar && !imeVisible) TopBar()
+            if (Prefs.showBar && !imeVisible) TopBar(onMusic = { musicSearch = true })
             var origin by remember { mutableStateOf(Offset.Zero) }
             BoxWithConstraints(
                 Modifier.weight(1f).fillMaxWidth().onGloballyPositioned { origin = it.positionInRoot() }
@@ -207,8 +210,12 @@ fun Desktop(env: Env, onPickWallpaper: (String) -> Unit, onReplayIntro: () -> Un
             enter = slideInVertically { -it } + fadeIn(), exit = slideOutVertically { -it } + fadeOut()) {
             PositionToolbar()
         }
-        AnimatedVisibility(ai, enter = fadeIn() + scaleIn(initialScale = 0.9f), exit = fadeOut() + scaleOut(targetScale = 0.9f)) {
-            AiTeaser { ai = false }
+        dev.terminox.music.MusicPlayerHost()
+        AnimatedVisibility(musicSearch, enter = fadeIn() + slideInVertically { it / 3 }, exit = fadeOut() + slideOutVertically { it / 3 }) {
+            dev.terminox.music.MusicSearchSheet { musicSearch = false }
+        }
+        AnimatedVisibility(ai, enter = fadeIn() + slideInVertically { it / 3 }, exit = fadeOut() + slideOutVertically { it / 3 }) {
+            dev.terminox.ai.AiPanel(agent) { ai = false }
         }
         AnimatedVisibility(settings, enter = fadeIn() + slideInVertically { it / 3 }, exit = fadeOut() + slideOutVertically { it / 3 }) {
             SettingsPanel(onClose = { settings = false }, onPickWallpaper = onPickWallpaper, onReplayIntro = onReplayIntro)
@@ -372,7 +379,7 @@ private fun TitleBar(title: String, focused: Boolean, accent: Color, onClose: ()
 }
 
 @Composable
-internal fun TopBar() {
+internal fun TopBar(onMusic: () -> Unit = {}) {
     val ctx = LocalContext.current
     var now by remember { mutableStateOf(Date()) }
     var battery by remember { mutableIntStateOf(-1) }
@@ -395,12 +402,18 @@ internal fun TopBar() {
             Spacer(Modifier.width(6.dp))
             Text(Prefs.layout, color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
         }
+        if (Prefs.musicEnabled) {
+            Spacer(Modifier.width(8.dp))
+            Box(Modifier.size(34.dp).glass(CircleShape, alpha = 0.5f).clickable(onClick = onMusic), contentAlignment = Alignment.Center) {
+                Icon(androidx.compose.material.icons.Icons.Rounded.MusicNote, "Music", tint = if (dev.terminox.music.Music.current != null) theme.b else Color.White, modifier = Modifier.size(18.dp))
+            }
+        }
         Spacer(Modifier.weight(1f))
         Text(SimpleDateFormat("HH:mm", Locale.getDefault()).format(now),
             modifier = Modifier.glass(RoundedCornerShape(50), alpha = 0.5f, elevation = 8.dp).padding(horizontal = 16.dp, vertical = 7.dp),
             color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.Bold)
         Spacer(Modifier.weight(1f))
-        Text("${WindowManager.wins.size} win${if (battery >= 0) "  ·  $battery%" else ""}",
+        Text((if (Prefs.locked) "🔒 " else "") + "${WindowManager.wins.size} win${if (battery >= 0) "  ·  $battery%" else ""}",
             modifier = Modifier.glass(RoundedCornerShape(50), alpha = 0.5f, elevation = 8.dp).padding(horizontal = 14.dp, vertical = 7.dp),
             color = Color.White, fontSize = 13.sp, fontFamily = FontFamily.Monospace)
     }
@@ -446,22 +459,6 @@ private fun PositionToolbar() {
         Box(Modifier.size(32.dp).clip(CircleShape).background(theme.b).clickable { WindowManager.positioning = false },
             contentAlignment = Alignment.Center) {
             Icon(Icons.Rounded.Check, "Done", tint = Color.Black, modifier = Modifier.size(18.dp))
-        }
-    }
-}
-
-@Composable
-private fun AiTeaser(onClose: () -> Unit) {
-    Box(Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.35f)).clickable(onClick = onClose), contentAlignment = Alignment.Center) {
-        GlassPanel(Modifier.padding(28.dp)) {
-            Column(Modifier.padding(28.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-                Blob(Modifier.size(110.dp))
-                Spacer(Modifier.height(16.dp))
-                Text("Hey, I'm the blob.", color = Color.White, fontSize = 22.sp, fontWeight = FontWeight.Bold)
-                Spacer(Modifier.height(8.dp))
-                Text("My Gemini brain gets plugged in with the next update.",
-                    color = Palette.dim, fontSize = 14.sp)
-            }
         }
     }
 }

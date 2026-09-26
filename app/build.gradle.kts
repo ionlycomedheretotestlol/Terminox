@@ -1,7 +1,16 @@
+import java.util.Properties
+
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
     id("org.jetbrains.kotlin.plugin.compose")
+}
+
+// Gemini key: from local.properties (gitignored) or the GEMINI_API_KEY env var. Never commit it.
+val geminiKey: String = run {
+    val f = rootProject.file("local.properties")
+    val props = Properties().apply { if (f.exists()) f.inputStream().use { load(it) } }
+    props.getProperty("GEMINI_API_KEY") ?: System.getenv("GEMINI_API_KEY") ?: ""
 }
 
 val terminoxAppId = (findProperty("terminox.appId") as String?) ?: "dev.terminox"
@@ -20,6 +29,7 @@ android {
         versionCode = 1
         versionName = "1.0.0"
         vectorDrawables.useSupportLibrary = true
+        buildConfigField("String", "GEMINI_API_KEY", "\"$geminiKey\"")
         // Only ABIs we ship a proot build for.
         ndk { abiFilters += listOf("arm64-v8a", "armeabi-v7a", "x86_64") }
     }

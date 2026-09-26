@@ -19,6 +19,7 @@ class TermService : Service() {
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         startForeground(ID, build(this))
+        if (Prefs.locked) KeepAlive.acquire(this)
         return START_NOT_STICKY
     }
 
@@ -48,7 +49,7 @@ class TermService : Service() {
             return builder
                 .setSmallIcon(R.drawable.ic_stat_terminox)
                 .setContentTitle("Terminox")
-                .setContentText("$n terminal${if (n == 1) "" else "s"} running")
+                .setContentText("$n terminal${if (n == 1) "" else "s"} running" + if (Prefs.locked) " · 🔒 locked" else "")
                 .setContentIntent(open)
                 .setOngoing(true)
                 .build()

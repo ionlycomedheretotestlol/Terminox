@@ -11,6 +11,10 @@ class Env(context: Context) {
     val tmp = File(files, "tmp")
     val fakeProc = File(files, "fakeproc")
     val installedMarker = File(files, ".installed")
+    /** Shared with the guest as /run/terminox: scripts drop command files here. */
+    val ipcDir = File(rootfs, "run/terminox")
+    /** Guest /tmp as seen from the app. */
+    val guestTmp = File(rootfs, "tmp")
     private val libDir = File(context.applicationInfo.nativeLibraryDir)
     val proot = File(libDir, "libproot.so")
     private val loader = File(libDir, "libproot-loader.so")

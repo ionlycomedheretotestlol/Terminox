@@ -39,7 +39,7 @@ object Sessions {
     fun close(t: Term) {
         t.session.finishIfRunning()
         terms.remove(t)
-        if (terms.isEmpty()) app.stopService(Intent(app, TermService::class.java))
+        if (terms.isEmpty() && !dev.terminox.core.Prefs.locked) app.stopService(Intent(app, TermService::class.java))
         else TermService.refresh(app)
     }
 
