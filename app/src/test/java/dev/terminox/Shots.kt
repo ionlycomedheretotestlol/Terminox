@@ -44,6 +44,7 @@ class Shots {
 
     @Test fun desktop() = shot("desktop", 1500) { FakeDesktop() }
     @Test fun desktopMaster() = shot("desktop-master", 1500) { Prefs.layout = "master"; FakeDesktop(focusIdx = 1) }
+    @Test fun perms() = shot("perms", 500) { dev.terminox.ui.PermissionsScreen(dev.terminox.ui.PermState(true, false, true), {}, {}, {}, {}) }
     @Test fun wallpaper() = shot("wallpaper", 500) { WallpaperSetup({}, {}) }
     @Test fun settings() = shot("settings", 500) { Box(Modifier.fillMaxSize()) { Aurora(Modifier.fillMaxSize()); SettingsPanel({}, {}, {}) } }
     @Test fun guide() = shot("guide", 500) { Box(Modifier.fillMaxSize()) { Aurora(Modifier.fillMaxSize()); Guide {} } }

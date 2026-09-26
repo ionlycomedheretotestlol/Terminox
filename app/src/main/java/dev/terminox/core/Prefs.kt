@@ -44,6 +44,7 @@ object Prefs {
     var introSeen by Pref("introSeen", false)
     var wallpaperChosen by Pref("wallpaperChosen", false)
     var guideSeen by Pref("guideSeen", false)
+    var permsSeen by Pref("permsSeen", false)
 
     // wallpaper: "aurora" | "image" | "video"
     var wallpaperType by Pref("wallpaperType", "aurora")

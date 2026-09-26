@@ -12,7 +12,11 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.lifecycle.lifecycleScope
+import dev.terminox.core.PermHub
+import dev.terminox.core.Perms
 import dev.terminox.core.Prefs
+import dev.terminox.ui.PermState
+import dev.terminox.ui.PermissionsScreen
 import dev.terminox.ui.Intro
 import dev.terminox.ui.LoadingScreen
 import dev.terminox.ui.TerminoxTheme
@@ -28,6 +32,8 @@ class MainActivity : ComponentActivity() {
     private var installed by mutableStateOf(false)
     private var replayIntro by mutableStateOf(false)
 
+    private val storagePerms = registerForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { refreshPerms() }
+
     private val picker = registerForActivityResult(ActivityResultContracts.GetContent()) { uri -> uri?.let { importWallpaper(it) } }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -36,12 +42,14 @@ class MainActivity : ComponentActivity() {
         val app = application as TerminoxApp
         installed = app.env.isInstalled
         lifecycleScope.launch(Dispatchers.Default) { Wallpaper.load(this@MainActivity) }
+        PermHub.request = ::requestPerm
 
         setContent {
             TerminoxTheme {
                 val stage = when {
                     !Prefs.introSeen || replayIntro -> "intro"
                     !Prefs.wallpaperChosen -> "wallpaper"
+                    !Prefs.permsSeen -> "perms"
                     !installed -> "loading"
                     else -> "desktop"
                 }
@@ -49,10 +57,32 @@ class MainActivity : ComponentActivity() {
                     when (s) {
                         "intro" -> Intro { Prefs.introSeen = true; replayIntro = false }
                         "wallpaper" -> WallpaperSetup(onPick = ::pick, onAurora = { Prefs.wallpaperType = "aurora"; Prefs.wallpaperChosen = true })
+                        "perms" -> PermissionsScreen(PermHub.state,
+                            onStorage = { requestPerm("storage") }, onBackground = { requestPerm("background") },
+                            onNotifications = { requestPerm("notifications") }, onDone = { Prefs.permsSeen = true })
                         "loading" -> LoadingScreen(app.installer) { installed = true; app.onDebianReady() }
                         else -> Desktop(app.env, app.agent, onPickWallpaper = ::pick, onReplayIntro = { replayIntro = true })
                     }
                 }
+            }
+        }
+    }
+
+    override fun onResume() {
+        super.onResume()
+        refreshPerms() // back from a system settings page
+    }
+
+    private fun refreshPerms() {
+        PermHub.state = PermState(Perms.storage(this), Perms.background(this), Perms.notifications(this))
+    }
+
+    private fun requestPerm(which: String) {
+        runCatching {
+            when (which) {
+                "storage" -> Perms.storageIntent(this)?.let { startActivity(it) } ?: storagePerms.launch(Perms.storageRuntime)
+                "background" -> startActivity(Perms.backgroundIntent(this))
+                "notifications" -> startActivity(Perms.notificationsIntent(this))
             }
         }
     }

@@ -131,18 +131,17 @@ fun SettingsPanel(onClose: () -> Unit, onPickWallpaper: (String) -> Unit, onRepl
                     Toggle("terminox-lock (run forever in background)", Prefs.locked) {
                         if (it) dev.terminox.core.KeepAlive.lock(ctx) else dev.terminox.core.KeepAlive.unlock(ctx)
                     }
-                    Text("Exclude from battery optimization", color = theme.a, fontWeight = FontWeight.SemiBold,
-                        modifier = Modifier.clip(RoundedCornerShape(12.dp)).clickable {
-                            runCatching {
-                                ctx.startActivity(android.content.Intent(android.provider.Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS,
-                                    android.net.Uri.parse("package:${ctx.packageName}")))
-                            }
-                        }.padding(vertical = 10.dp))
                     Toggle("Music Player", Prefs.musicEnabled) { Prefs.musicEnabled = it }
                     if (Prefs.musicEnabled) {
                         Chips(listOf("background" to "Background lyrics", "command" to "Command (ter-music)"), Prefs.musicMode) { Prefs.musicMode = it }
                         Slide("Lyrics offset (ms)", Prefs.lyricOffsetMs.toFloat(), -2000f..2000f) { Prefs.lyricOffsetMs = (it / 50).roundToInt() * 50 }
                     }
+
+                    Section("Permissions")
+                    val hub = dev.terminox.core.PermHub
+                    PermissionList(hub.state, { hub.request("storage") }, { hub.request("background") }, { hub.request("notifications") })
+                    Text("New terminals pick up /sdcard once storage is allowed.", color = Palette.dim, fontSize = 12.sp,
+                        modifier = Modifier.padding(top = 8.dp))
 
                     Section("About")
                     Text("Replay intro", color = theme.a, fontWeight = FontWeight.SemiBold,
