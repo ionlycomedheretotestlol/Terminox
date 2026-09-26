@@ -3,6 +3,8 @@ package dev.terminox
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
@@ -15,7 +17,6 @@ import com.github.takahirom.roborazzi.captureRoboImage
 import dev.terminox.core.Prefs
 import dev.terminox.ui.Aurora
 import dev.terminox.ui.Guide
-import dev.terminox.ui.Intro
 import dev.terminox.ui.SettingsPanel
 import dev.terminox.ui.TerminoxTheme
 import dev.terminox.ui.WallpaperSetup
@@ -46,9 +47,17 @@ class Shots {
     @Test fun wallpaper() = shot("wallpaper", 500) { WallpaperSetup({}, {}) }
     @Test fun settings() = shot("settings", 500) { Box(Modifier.fillMaxSize()) { Aurora(Modifier.fillMaxSize()); SettingsPanel({}, {}, {}) } }
     @Test fun guide() = shot("guide", 500) { Box(Modifier.fillMaxSize()) { Aurora(Modifier.fillMaxSize()); Guide {} } }
-    @Test fun introLogo() = shot("intro1", 2500) { Intro {} }
-    @Test fun introTiles() = shot("intro2", 6500) { Intro {} }
-    @Test fun introEnd() = shot("intro6", 21000) { Intro {} }
+    @Test fun intro() {
+        Prefs.init(RuntimeEnvironment.getApplication())
+        var time by androidx.compose.runtime.mutableFloatStateOf(0f)
+        rule.mainClock.autoAdvance = false
+        rule.setContent { TerminoxTheme { dev.terminox.ui.IntroFrame(time) {} } }
+        for (s in listOf(2.5f, 6f, 9f, 12.2f, 14.5f, 19.7f, 22.5f, 28f, 33.2f, 35.5f, 36.3f, 41f, 46.5f, 50f, 54f)) {
+            time = s
+            rule.mainClock.advanceTimeBy(1000)
+            rule.onRoot().captureRoboImage("build/shots/intro-%05.1f.png".format(s))
+        }
+    }
 }
 
 private val FAKE = listOf(

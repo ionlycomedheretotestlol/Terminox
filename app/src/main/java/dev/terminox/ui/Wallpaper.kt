@@ -113,11 +113,10 @@ fun WallpaperLayer(modifier: Modifier = Modifier) {
 
 /** Animated mesh-gradient wallpaper in the current theme's colors. */
 @Composable
-fun Aurora(modifier: Modifier = Modifier) {
+fun Aurora(modifier: Modifier = Modifier, colors: List<Color> = Themes.current.aurora) {
     val t by rememberInfiniteTransition(label = "aurora").animateFloat(
         0f, (2 * Math.PI).toFloat(), infiniteRepeatable(tween(40_000, easing = LinearEasing), RepeatMode.Restart), label = "t"
     )
-    val colors = Themes.current.aurora
     Canvas(modifier) { drawAurora(colors, t, Offset.Zero) }
 }
 
