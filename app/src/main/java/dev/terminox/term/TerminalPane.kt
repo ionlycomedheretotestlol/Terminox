@@ -6,6 +6,8 @@ import android.view.KeyEvent
 import android.view.MotionEvent
 import android.view.inputmethod.InputMethodManager
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
@@ -14,6 +16,11 @@ import androidx.compose.ui.viewinterop.AndroidView
 import com.termux.terminal.TerminalSession
 import com.termux.view.TerminalView
 import com.termux.view.TerminalViewClient
+
+/** True while a panel with its own text field is open: terminals must not steal focus then. */
+object FocusGuard {
+    var overlayOpen by mutableStateOf(false)
+}
 
 /** Sticky modifier keys shared by the extra-keys row and the terminal view. */
 object Modifiers {
@@ -32,6 +39,11 @@ fun TerminalPane(
 ) {
     val version = term.version.intValue
     val scheme = Schemes.current()
+    var viewRef by remember { mutableStateOf<TerminalView?>(null) }
+    // Take focus only when this window becomes focused (or a panel closes), not on output.
+    LaunchedEffect(focused, FocusGuard.overlayOpen, viewRef) {
+        if (focused && !FocusGuard.overlayOpen) viewRef?.let { it.requestFocus(); onView(it) }
+    }
     AndroidView(
         modifier = modifier,
         factory = { ctx ->
@@ -46,6 +58,7 @@ fun TerminalPane(
                 isFocusableInTouchMode = true
                 attachSession(term.session)
                 Schemes.apply(mEmulator)
+                viewRef = this
             }
         },
         update = { v ->
@@ -54,7 +67,9 @@ fun TerminalPane(
             // Reading `version` makes new shell output re-run this block.
             if (version >= 0) v.onScreenUpdated()
             if (scheme.name.isNotEmpty()) { Schemes.apply(v.mEmulator); v.invalidate() }
-            if (focused) { v.requestFocus(); onView(v) }
+            // Only report the view here; focus is requested on changes (below), never on every redraw,
+            // or a terminal printing output would yank the keyboard away from other text fields.
+            if (focused) onView(v)
         }
     )
 }

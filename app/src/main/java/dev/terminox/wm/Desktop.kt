@@ -127,6 +127,8 @@ fun Desktop(env: Env, agent: dev.terminox.ai.Agent, onPickWallpaper: (String) ->
     var musicSearch by remember { mutableStateOf(false) }
     var focusedView by remember { mutableStateOf<TerminalView?>(null) }
     val imeVisible = WindowInsets.isImeVisible
+    // Panels with text fields keep the keyboard; terminals won't grab focus while one is open.
+    androidx.compose.runtime.SideEffect { dev.terminox.term.FocusGuard.overlayOpen = ai || settings || musicSearch }
 
     LaunchedEffect(Unit) { if (Sessions.terms.isEmpty()) Sessions.create(env) }
     val termCount = Sessions.terms.size
