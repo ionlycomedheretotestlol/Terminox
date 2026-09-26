@@ -24,7 +24,7 @@ import java.util.concurrent.TimeUnit
  * Playback: YouTube's own mobile site in a WebView (see MusicUi), whose clock drives the lyrics.
  */
 object Music {
-    data class Track(val title: String, val artist: String, val album: String, val durationSec: Int, val artwork: String)
+    data class Track(val title: String, val artist: String, val album: String, val durationSec: Int, val artwork: String, val previewUrl: String = "")
     data class Line(val timeMs: Long, val text: String)
 
     val results = mutableStateListOf<Track>()
@@ -36,8 +36,14 @@ object Music {
     var playing by mutableStateOf(false)
     /** An ad is running in the player: lyrics hold still until the song itself plays. */
     var adPlaying by mutableStateOf(false)
-    /** true while the YouTube page is shown big so the user can tap the song. */
-    var expanded by mutableStateOf(false)
+    /** Candidate YouTube IDs for the official embed player; tried in order if one refuses to embed. */
+    var videoIds by mutableStateOf<List<String>>(emptyList())
+    /** Autoplay was blocked: show the small tap-to-play popup, which closes itself once playing. */
+    var needsTap by mutableStateOf(false)
+    /** "youtube" | "preview" | "" (still finding). */
+    var backend by mutableStateOf("")
+    var status by mutableStateOf("")
+    private var preview: android.media.MediaPlayer? = null
     var searchOpen by mutableStateOf(false)
     /** Set by the UI: runs JS in the player page. */
     var js: ((String) -> Unit)? = null
@@ -55,17 +61,24 @@ object Music {
         List(arr.length()) { i ->
             val o = arr.getJSONObject(i)
             Track(o.optString("trackName"), o.optString("artistName"), o.optString("collectionName"),
-                o.optInt("trackTimeMillis") / 1000, o.optString("artworkUrl100").replace("100x100", "300x300"))
+                o.optInt("trackTimeMillis") / 1000, o.optString("artworkUrl100").replace("100x100", "300x300"), o.optString("previewUrl"))
         }
     }.also { withContext(Dispatchers.Main) { results.clear(); results.addAll(it) } }
 
     fun play(track: Track) {
+        releasePreview()
         current = track
         lyrics = emptyList()
         lyricsStatus = "Finding lyrics…"
-        positionMs = 0; durationMs = track.durationSec * 1000L; playing = false
-        expanded = true
+        positionMs = 0; durationMs = track.durationSec * 1000L; playing = false; adPlaying = false
+        videoIds = emptyList(); needsTap = false; backend = ""
+        status = "Finding the song…"
         searchOpen = false
+        scope.launch {
+            val ids = VideoFinder.find(track)
+            if (current !== track) return@launch
+            if (ids.isEmpty()) usePreview("Couldn't find a full version — playing the preview") else { videoIds = ids; backend = "youtube"; status = "" }
+        }
         scope.launch {
             val found = runCatching { fetchLyrics(track) }.getOrNull()
             lyrics = found.orEmpty()
@@ -79,17 +92,41 @@ object Music {
         return "${t.title} — ${t.artist}"
     }
 
-    fun toggle() = js?.invoke("(function(){var v=document.querySelector('video');if(v){v.paused?v.play():v.pause();}})()")
-
-    fun stop() {
-        js?.invoke("(function(){var v=document.querySelector('video');if(v)v.pause();})()")
-        current = null; lyrics = emptyList(); playing = false; adPlaying = false; expanded = false
-        ipc?.let { runCatching { it.reply("music-now", listOf("", "", "0", "", "", "Stopped.", "", "", "stopped")) } }
+    fun toggle() {
+        preview?.let { if (it.isPlaying) it.pause() else it.start(); playing = it.isPlaying; return }
+        js?.invoke("toggle()")
     }
 
-    fun youtubeSearchUrl(t: Track) =
-        "https://m.youtube.com/results".toHttpUrl().newBuilder()
-            .addQueryParameter("search_query", "${t.artist} ${t.title} audio").build().toString()
+    /** Every YouTube candidate failed (or none found): fall back to the 30s preview so something plays. */
+    fun usePreview(reason: String) {
+        val t = current ?: return
+        videoIds = emptyList(); needsTap = false
+        if (t.previewUrl.isBlank()) { backend = ""; status = "No playable version found"; return }
+        backend = "preview"; status = reason
+        releasePreview()
+        preview = android.media.MediaPlayer().apply {
+            setDataSource(t.previewUrl)
+            setOnPreparedListener { it.start(); durationMs = it.duration.toLong(); playing = true }
+            setOnCompletionListener { playing = false }
+            prepareAsync()
+        }
+        scope.launch {
+            while (preview != null && current === t) {
+                preview?.let { runCatching { tick(it.currentPosition.toLong(), it.duration.toLong(), it.isPlaying, false) } }
+                kotlinx.coroutines.delay(250)
+            }
+        }
+    }
+
+    private fun releasePreview() { preview?.release(); preview = null }
+
+    fun stop() {
+        js?.invoke("stop()")
+        releasePreview()
+        current = null; lyrics = emptyList(); playing = false; adPlaying = false
+        videoIds = emptyList(); needsTap = false; backend = ""; status = ""
+        ipc?.let { runCatching { it.reply("music-now", listOf("", "", "0", "", "", "Stopped.", "", "", "stopped")) } }
+    }
 
     /** Called ~4x/second by the player with the video's clock. */
     fun tick(posMs: Long, durMs: Long, isPlaying: Boolean, adFlag: Boolean) {
@@ -115,7 +152,7 @@ object Music {
         val ipc = ipc ?: return
         val i = lineIndex()
         fun at(k: Int) = lyrics.getOrNull(k)?.text.orEmpty()
-        val cur = if (adPlaying) "Ad playing, lyrics will wait…" else if (lyrics.isEmpty()) lyricsStatus.ifEmpty { "♪" } else if (i < 0) "♪" else at(i).ifEmpty { "♪" }
+        val cur = if (adPlaying) "Ad playing, lyrics will wait…" else if (status.isNotEmpty() && !playing) status else if (lyrics.isEmpty()) lyricsStatus.ifEmpty { "♪" } else if (i < 0) "♪" else at(i).ifEmpty { "♪" }
         val pct = if (durationMs > 0) (positionMs * 100 / durationMs).toInt().coerceIn(0, 100) else 0
         val lines = listOf(t.title, t.artist, "$pct", "${fmt(positionMs)} / ${fmt(durationMs)}",
             at(i - 1), cur, at(i + 1), at(i + 2), if (adPlaying) "ad" else if (playing) "playing" else "paused")

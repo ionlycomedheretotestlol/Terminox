@@ -1,6 +1,7 @@
 package dev.terminox.music
 
 import android.annotation.SuppressLint
+import android.webkit.JavascriptInterface
 import android.webkit.WebChromeClient
 import android.webkit.WebView
 import android.webkit.WebViewClient
@@ -58,6 +59,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
@@ -79,72 +81,99 @@ import kotlinx.coroutines.launch
 import org.json.JSONArray
 
 /**
- * The player: YouTube's mobile site. Big while the user taps the song, then a glass mini player.
- * Its video clock drives the synced lyrics.
+ * The player: YouTube's official embedded player, kept out of sight. It tries to autoplay; if Android
+ * wants a tap, a small popup with just the video appears and closes itself once the song starts.
+ * A glass mini player shows the song, time and controls.
  */
-@SuppressLint("SetJavaScriptEnabled")
+@SuppressLint("SetJavaScriptEnabled", "JavascriptInterface")
 @Composable
 fun MusicPlayerHost() {
     val track = Music.current ?: return
-    val ctx = LocalContext.current
-    val web = remember(track) {
-        WebView(ctx).apply {
-            settings.javaScriptEnabled = true
-            settings.domStorageEnabled = true
-            settings.mediaPlaybackRequiresUserGesture = false
-            webChromeClient = WebChromeClient()
-            webViewClient = object : WebViewClient() {
-                override fun doUpdateVisitedHistory(view: WebView, url: String, isReload: Boolean) {
-                    if ("/watch" in url) postDelayed({ Music.expanded = false }, 1200)
+    val ids = Music.videoIds
+    val theme = Themes.current
+    Box(Modifier.fillMaxSize().statusBarsPadding().navigationBarsPadding()) {
+        if (ids.isNotEmpty()) {
+            val ctx = LocalContext.current
+            val web = remember(ids) {
+                WebView(ctx).apply {
+                    settings.javaScriptEnabled = true
+                    settings.domStorageEnabled = true
+                    settings.mediaPlaybackRequiresUserGesture = false
+                    webChromeClient = WebChromeClient()
+                    webViewClient = WebViewClient()
+                    setBackgroundColor(android.graphics.Color.BLACK)
+                    addJavascriptInterface(object {
+                        @JavascriptInterface fun state(pos: Double, dur: Double, isPlaying: Boolean) =
+                            post { Music.tick((pos * 1000).toLong(), (dur * 1000).toLong(), isPlaying, false) }
+                        @JavascriptInterface fun playing() = post { Music.needsTap = false; Music.status = "" }
+                        @JavascriptInterface fun failed(code: Int) = post { Music.usePreview("YouTube wouldn't play this one ($code), playing the preview") }
+                    }, "Terminox")
+                    loadDataWithBaseURL("https://terminox.app/", playerHtml(ids), "text/html", "utf-8", null)
                 }
             }
-            loadUrl(Music.youtubeSearchUrl(track))
-        }
-    }
-    DisposableEffect(web) {
-        Music.js = { code -> web.evaluateJavascript(code, null) }
-        onDispose { Music.js = null; web.destroy() }
-    }
-    LaunchedEffect(web) {
-        while (true) {
-            // YouTube marks the player with ad-showing/ad-interrupting while an ad runs.
-            web.evaluateJavascript("(function(){var v=document.querySelector('video');if(!v)return null;" +
-                "var ad=!!document.querySelector('.ad-showing,.ad-interrupting,.ytp-ad-player-overlay,.ytm-promoted-video-renderer .ad-showing');" +
-                "return [v.currentTime,v.duration||0,!v.paused,ad];})()") { r ->
-                runCatching {
-                    val a = JSONArray(r)
-                    Music.tick((a.getDouble(0) * 1000).toLong(), (a.getDouble(1) * 1000).toLong(), a.getBoolean(2), a.getBoolean(3))
-                }
+            DisposableEffect(web) {
+                Music.js = { code -> web.evaluateJavascript(code, null) }
+                onDispose { Music.js = null; web.destroy() }
             }
-            delay(250)
+            LaunchedEffect(web) {
+                delay(3500)
+                if (!Music.playing && Music.backend == "youtube") Music.needsTap = true
+            }
+            val tap = Music.needsTap
+            // Same view either way: a small popup when a tap is needed, otherwise invisible.
+            Column(
+                Modifier.align(if (tap) Alignment.Center else Alignment.BottomEnd)
+                    .width(if (tap) 300.dp else 200.dp)
+                    .graphicsLayer { alpha = if (tap) 1f else 0f }
+                    .then(if (tap) Modifier.glass(RoundedCornerShape(24.dp), alpha = 0.9f).padding(10.dp) else Modifier)
+            ) {
+                if (tap) {
+                    Text("Tap ▶ to start the song", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 15.sp,
+                        modifier = Modifier.padding(start = 4.dp, bottom = 8.dp))
+                }
+                AndroidView({ web }, Modifier.fillMaxWidth().height(if (tap) 158.dp else 113.dp).clip(RoundedCornerShape(14.dp)))
+            }
         }
-    }
 
-    BoxWithConstraints(Modifier.fillMaxSize().statusBarsPadding().navigationBarsPadding()) {
-        val big = Music.expanded
-        val w by animateDpAsState(if (big) maxWidth - 24.dp else 200.dp, spring(0.8f), label = "w")
-        val h by animateDpAsState(if (big) maxHeight * 0.72f else 150.dp, spring(0.8f), label = "h")
-        val x by animateDpAsState(if (big) 12.dp else maxWidth - 214.dp, spring(0.8f), label = "x")
-        val y by animateDpAsState(if (big) maxHeight * 0.12f else maxHeight - 250.dp, spring(0.8f), label = "y")
-        Column(Modifier.offset(x, y).width(w).height(h).glass(RoundedCornerShape(if (big) 26.dp else 20.dp), alpha = 0.8f)) {
-            Row(Modifier.fillMaxWidth().height(if (big) 48.dp else 34.dp).padding(horizontal = 10.dp), verticalAlignment = Alignment.CenterVertically) {
-                Icon(Icons.Rounded.MusicNote, null, tint = Themes.current.a, modifier = Modifier.size(18.dp))
-                Spacer(Modifier.width(6.dp))
-                Text(if (big) "Tap your song ↓" else track.title, color = Color.White, fontSize = if (big) 16.sp else 12.sp,
-                    fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
-                if (!big) {
-                    Icon(if (Music.playing) Icons.Rounded.Pause else Icons.Rounded.PlayArrow, "Play/pause", tint = Color.White,
-                        modifier = Modifier.size(26.dp).clip(CircleShape).clickable { Music.toggle() }.padding(3.dp))
+        if (!Music.needsTap) {
+            Row(
+                Modifier.align(Alignment.BottomEnd).padding(end = 14.dp, bottom = 88.dp).width(240.dp)
+                    .glass(RoundedCornerShape(22.dp), alpha = 0.75f).padding(8.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                AsyncImage(track.artwork, null, Modifier.size(40.dp).clip(RoundedCornerShape(10.dp)), contentScale = ContentScale.Crop)
+                Spacer(Modifier.width(8.dp))
+                Column(Modifier.weight(1f)) {
+                    Text(track.title, color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    Text(Music.status.ifEmpty { "${Music.fmt(Music.positionMs)} / ${Music.fmt(Music.durationMs)}" },
+                        color = Palette.dim, fontSize = 11.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 }
-                Icon(Icons.Rounded.OpenInFull, "Expand", tint = Color.White.copy(alpha = 0.7f),
-                    modifier = Modifier.size(24.dp).clip(CircleShape).clickable { Music.expanded = !big }.padding(4.dp))
+                Icon(if (Music.playing) Icons.Rounded.Pause else Icons.Rounded.PlayArrow, "Play/pause", tint = theme.a,
+                    modifier = Modifier.size(32.dp).clip(CircleShape).clickable { Music.toggle() }.padding(4.dp))
                 Icon(Icons.Rounded.Close, "Stop", tint = Color.White.copy(alpha = 0.7f),
-                    modifier = Modifier.size(24.dp).clip(CircleShape).clickable { Music.stop() }.padding(3.dp))
+                    modifier = Modifier.size(28.dp).clip(CircleShape).clickable { Music.stop() }.padding(4.dp))
             }
-            AndroidView({ web }, Modifier.fillMaxWidth().weight(1f).padding(horizontal = 6.dp).padding(bottom = 6.dp).clip(RoundedCornerShape(14.dp)))
         }
     }
 }
+
+private fun playerHtml(ids: List<String>) = """
+<!doctype html><html><head><meta name="viewport" content="width=device-width,initial-scale=1">
+<style>html,body{margin:0;height:100%;background:#000;overflow:hidden}#p{width:100%;height:100%}</style></head>
+<body><div id="p"></div><script>
+var ids=${ids.joinToString(",", "[", "]") { "\"$it\"" }},i=0,player;
+var s=document.createElement('script');s.src='https://www.youtube.com/iframe_api';document.head.appendChild(s);
+function onYouTubeIframeAPIReady(){
+  player=new YT.Player('p',{videoId:ids[0],playerVars:{autoplay:1,playsinline:1,rel:0,origin:'https://terminox.app'},
+    events:{onReady:function(e){e.target.playVideo();},
+      onStateChange:function(e){if(e.data==1)Terminox.playing();},
+      onError:function(e){i++;if(i<ids.length){player.loadVideoById(ids[i]);}else{Terminox.failed(e.data);}}}});
+  setInterval(function(){if(player&&player.getCurrentTime){Terminox.state(player.getCurrentTime()||0,player.getDuration()||0,player.getPlayerState()==1);}},250);
+}
+function toggle(){if(player)(player.getPlayerState()==1?player.pauseVideo():player.playVideo());}
+function stop(){if(player&&player.stopVideo)player.stopVideo();}
+</script></body></html>
+"""
 
 /** Big synced lyrics drawn over the wallpaper, behind the windows ("background" mode). */
 @Composable
@@ -159,7 +188,7 @@ fun LyricsLayer(modifier: Modifier = Modifier) {
         Text(Music.lyrics.getOrNull(i - 1)?.text.orEmpty(), color = Color.White.copy(alpha = 0.35f), fontSize = 18.sp, textAlign = TextAlign.Center)
         Spacer(Modifier.height(12.dp))
         AnimatedContent(i, transitionSpec = { (slideInVertically { it / 2 } + fadeIn()) togetherWith (slideOutVertically { -it / 2 } + fadeOut()) }, label = "lyric") { k ->
-            val text = if (Music.adPlaying) "Ad playing, lyrics will wait" else if (Music.lyrics.isEmpty()) Music.lyricsStatus else Music.lyrics.getOrNull(k)?.text?.ifEmpty { "♪" } ?: "♪"
+            val text = if (Music.adPlaying) "Ad playing, lyrics will wait" else if (Music.status.isNotEmpty() && !Music.playing) Music.status else if (Music.lyrics.isEmpty()) Music.lyricsStatus else Music.lyrics.getOrNull(k)?.text?.ifEmpty { "♪" } ?: "♪"
             Text(text, fontSize = 30.sp, lineHeight = 36.sp, fontWeight = FontWeight.Black, textAlign = TextAlign.Center,
                 style = androidx.compose.ui.text.TextStyle(brush = Brush.linearGradient(listOf(theme.a, theme.b))))
         }
