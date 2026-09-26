@@ -34,14 +34,15 @@ android {
         ndk { abiFilters += listOf("arm64-v8a", "armeabi-v7a", "x86_64") }
     }
 
+    // Release signing comes from the environment (CI secrets or your shell); never commit keys.
+    // Without it, builds are signed with the local debug key.
+    val releaseKeystore = System.getenv("TERMINOX_KEYSTORE")?.let { file(it) }?.takeIf { it.exists() }
     signingConfigs {
-        create("terminox") {
-            // Public sideload key so every build can update the previous one.
-            // Override with TERMINOX_KEYSTORE / TERMINOX_KEYSTORE_PASSWORD / TERMINOX_KEY_ALIAS / TERMINOX_KEY_PASSWORD.
-            storeFile = file(System.getenv("TERMINOX_KEYSTORE") ?: "terminox-dev.jks")
-            storePassword = System.getenv("TERMINOX_KEYSTORE_PASSWORD") ?: "terminox"
-            keyAlias = System.getenv("TERMINOX_KEY_ALIAS") ?: "terminox"
-            keyPassword = System.getenv("TERMINOX_KEY_PASSWORD") ?: "terminox"
+        if (releaseKeystore != null) create("release") {
+            storeFile = releaseKeystore
+            storePassword = System.getenv("TERMINOX_KEYSTORE_PASSWORD")
+            keyAlias = System.getenv("TERMINOX_KEY_ALIAS")
+            keyPassword = System.getenv("TERMINOX_KEY_PASSWORD")
         }
     }
 
@@ -50,10 +51,7 @@ android {
             isMinifyEnabled = true
             isShrinkResources = true
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
-            signingConfig = signingConfigs.getByName("terminox")
-        }
-        debug {
-            signingConfig = signingConfigs.getByName("terminox")
+            signingConfig = signingConfigs.findByName("release") ?: signingConfigs.getByName("debug")
         }
     }
 

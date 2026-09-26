@@ -19,7 +19,7 @@ object Lyrics {
     data class Result(val lines: List<Music.Line>, val synced: Boolean, val source: String)
 
     private val http = OkHttpClient.Builder().callTimeout(15, TimeUnit.SECONDS).build()
-    private const val UA = "Terminox/1.0 (https://github.com/ionlycomedheretotestlol/multi-terminal-app)"
+    private const val UA = "Terminox/1.0 (https://github.com/ionlycomedheretotestlol/terminox)"
 
     fun find(t: Music.Track): Result? {
         val title = cleanTitle(t.title)

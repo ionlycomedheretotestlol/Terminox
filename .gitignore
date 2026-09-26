@@ -8,3 +8,5 @@ build/
 .externalNativeBuild
 .cxx
 terminox-*.apk
+*.jks
+*.keystore

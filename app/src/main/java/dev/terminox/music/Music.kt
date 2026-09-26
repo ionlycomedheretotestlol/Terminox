@@ -174,6 +174,6 @@ object Music {
     fun fmt(ms: Long): String { val s = ms / 1000; return "%d:%02d".format(s / 60, s % 60) }
 
     private fun get(url: String): String =
-        http.newCall(Request.Builder().url(url).header("User-Agent", "Terminox/1.0 (https://github.com/ionlycomedheretotestlol/multi-terminal-app)").build())
+        http.newCall(Request.Builder().url(url).header("User-Agent", "Terminox/1.0 (https://github.com/ionlycomedheretotestlol/terminox)").build())
             .execute().use { r -> if (!r.isSuccessful) error("HTTP ${r.code}"); r.body!!.string() }
 }
