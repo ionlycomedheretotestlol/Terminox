@@ -31,6 +31,8 @@ object Music {
     var current by mutableStateOf<Track?>(null)
     var lyrics by mutableStateOf<List<Line>>(emptyList())
     var lyricsStatus by mutableStateOf("")
+    /** Where the lyrics came from ("LRCLIB", "NetEase", "unsynced"). */
+    var lyricsSource by mutableStateOf("")
     var positionMs by mutableLongStateOf(0L)
     var durationMs by mutableLongStateOf(0L)
     var playing by mutableStateOf(false)
@@ -80,9 +82,16 @@ object Music {
             if (ids.isEmpty()) usePreview("Couldn't find a full version — playing the preview") else { videoIds = ids; backend = "youtube"; status = "" }
         }
         scope.launch {
-            val found = runCatching { fetchLyrics(track) }.getOrNull()
-            lyrics = found.orEmpty()
-            lyricsStatus = if (found.isNullOrEmpty()) "No synced lyrics for this one" else ""
+            // Network work must stay off the main thread (this was silently failing before).
+            val found = withContext(Dispatchers.IO) { runCatching { Lyrics.find(track) }.getOrNull() }
+            if (current !== track) return@launch
+            lyrics = found?.lines.orEmpty()
+            lyricsStatus = when {
+                found == null || found.lines.isEmpty() -> "No lyrics found for this one"
+                !found.synced -> "" // plain lyrics, spread over the song
+                else -> ""
+            }
+            lyricsSource = found?.let { if (it.synced) it.source else "unsynced" }.orEmpty()
         }
     }
 
@@ -163,31 +172,6 @@ object Music {
     }
 
     fun fmt(ms: Long): String { val s = ms / 1000; return "%d:%02d".format(s / 60, s % 60) }
-
-    private fun fetchLyrics(t: Track): List<Line>? {
-        val get = "https://lrclib.net/api/get".toHttpUrl().newBuilder()
-            .addQueryParameter("track_name", t.title).addQueryParameter("artist_name", t.artist)
-            .addQueryParameter("album_name", t.album).addQueryParameter("duration", t.durationSec.toString()).build()
-        runCatching { JSONObject(get(get.toString())).optString("syncedLyrics") }.getOrNull()
-            ?.takeIf { it.isNotBlank() && it != "null" }?.let { return parseLrc(it) }
-        val search = "https://lrclib.net/api/search".toHttpUrl().newBuilder()
-            .addQueryParameter("q", "${t.artist} ${t.title}").build()
-        val arr = JSONArray(get(search.toString()))
-        for (i in 0 until arr.length()) {
-            val s = arr.getJSONObject(i).optString("syncedLyrics")
-            if (s.isNotBlank() && s != "null") return parseLrc(s)
-        }
-        return null
-    }
-
-    private fun parseLrc(lrc: String): List<Line> {
-        val re = Regex("""\[(\d+):(\d+(?:\.\d+)?)]""")
-        return lrc.lines().flatMap { line ->
-            val stamps = re.findAll(line).toList()
-            val text = line.replace(re, "").trim()
-            stamps.map { m -> Line((m.groupValues[1].toLong() * 60_000 + m.groupValues[2].toDouble() * 1000).toLong(), text) }
-        }.sortedBy { it.timeMs }
-    }
 
     private fun get(url: String): String =
         http.newCall(Request.Builder().url(url).header("User-Agent", "Terminox/1.0 (https://github.com/ionlycomedheretotestlol/multi-terminal-app)").build())

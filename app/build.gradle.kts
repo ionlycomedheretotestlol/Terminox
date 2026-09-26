@@ -81,6 +81,7 @@ android {
             System.getenv("ROBOLECTRIC_DEPS")?.let { dir ->
                 it.systemProperty("robolectric.offline", "true")
                 it.systemProperty("roborazzi.test.record", "true")
+                it.testLogging.showStandardStreams = true
                 it.systemProperty("robolectric.dependency.dir", dir)
             }
         }

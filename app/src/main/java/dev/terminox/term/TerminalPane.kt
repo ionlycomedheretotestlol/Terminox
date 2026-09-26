@@ -42,10 +42,11 @@ fun TerminalPane(
     onTap: () -> Unit = {},
     onView: (TerminalView) -> Unit = {},
 ) {
-    val version = term.version.intValue
     val px = with(androidx.compose.ui.platform.LocalDensity.current) { fontSize.sp.roundToPx() }
     val scheme = Schemes.current()
     var viewRef by remember { mutableStateOf<TerminalView?>(null) }
+    LaunchedEffect(scheme.name, viewRef) { viewRef?.let { Schemes.apply(it.mEmulator); it.invalidate() } }
+    androidx.compose.runtime.DisposableEffect(term) { onDispose { if (term.view === viewRef) term.view = null } }
     // Take focus only when this window becomes focused (or a panel closes), not on output.
     LaunchedEffect(focused, FocusGuard.overlayOpen, viewRef) {
         if (focused && !FocusGuard.overlayOpen) viewRef?.let { it.requestFocus(); onView(it) }
@@ -64,15 +65,16 @@ fun TerminalPane(
                 isFocusableInTouchMode = true
                 attachSession(term.session)
                 Schemes.apply(mEmulator)
+                tag = px
+                term.view = this
                 viewRef = this
             }
         },
         update = { v ->
             if (v.currentSession !== term.session) v.attachSession(term.session)
-            v.setTextSize(px)
-            // Reading `version` makes new shell output re-run this block.
-            if (version >= 0) v.onScreenUpdated()
-            if (scheme.name.isNotEmpty()) { Schemes.apply(v.mEmulator); v.invalidate() }
+            term.view = v
+            // setTextSize rebuilds the renderer: only when the size actually changed.
+            if (v.tag != px) { v.setTextSize(px); v.tag = px }
             // Only report the view here; focus is requested on changes (below), never on every redraw,
             // or a terminal printing output would yank the keyboard away from other text fields.
             if (focused) onView(v)

@@ -4,7 +4,6 @@ import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
 import android.content.Intent
-import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateListOf
 import androidx.core.content.ContextCompat
 import com.termux.terminal.TerminalSession
@@ -15,8 +14,8 @@ import dev.terminox.core.TermService
 /** Owns every running shell; lives in the app process so shells survive the UI. */
 object Sessions {
     class Term(val id: Int, val session: TerminalSession) {
-        /** Bumped on every screen update so Compose can redraw the matching view. */
-        val version = mutableIntStateOf(0)
+        /** The view showing this session. Output redraws it directly, bypassing Compose (fast path). */
+        var view: com.termux.view.TerminalView? = null
     }
 
     val terms = mutableStateListOf<Term>()
@@ -44,7 +43,7 @@ object Sessions {
     }
 
     private fun client(term: () -> Term?) = object : TerminalSessionClient {
-        override fun onTextChanged(s: TerminalSession) { term()?.version?.let { it.intValue++ } }
+        override fun onTextChanged(s: TerminalSession) { term()?.view?.onScreenUpdated() }
         override fun onTitleChanged(s: TerminalSession) {}
         override fun onSessionFinished(s: TerminalSession) { term()?.let { close(it) } }
         override fun onCopyTextToClipboard(s: TerminalSession, text: String) {
