@@ -1,0 +1,36 @@
+name: Publish release
+
+# Publishes the prebuilt APK in release/ as a GitHub release.
+on:
+  push:
+    paths: ["release/**"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    env:
+      VERSION: "1.0.0"
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Verify APK checksum
+        working-directory: release
+        run: sha256sum -c "Terminox-$VERSION.apk.sha256"
+
+      - name: Create or update release
+        run: |
+          if gh release view "v$VERSION" >/dev/null 2>&1; then
+            gh release edit "v$VERSION" --title "Terminox $VERSION" --notes-file release/RELEASE_NOTES.md
+            gh release upload "v$VERSION" "release/Terminox-$VERSION.apk" --clobber
+          else
+            gh release create "v$VERSION" "release/Terminox-$VERSION.apk" \
+              --title "Terminox $VERSION" \
+              --notes-file release/RELEASE_NOTES.md \
+              --target "$GITHUB_SHA" \
+              --latest
+          fi
